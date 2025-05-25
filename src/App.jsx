@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import Login from './components/Login';
-import Register from './components/Register';
-import WalletDashboard from './components/WalletDashboard';
 import Welcome from './components/Welcome';
 import BasicInfo from './components/BasicInfo';
 import BusinessCategory from './components/BusinessCategory';
@@ -10,19 +8,16 @@ import SpecificServices from './components/SpecificServices';
 import PageQuality from './components/PageQuality';
 import Confirmation from './components/Confirmation';
 import SurveyComplete from './components/SurveyComplete';
+import Dashboard from './components/Dashboard';
 import ProgressBar from './components/ProgressBar';
 import Toast from './components/Toast';
-import SuccessAnimation from './components/SuccessAnimation';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [currentStep, setCurrentStep] = useState('dashboard');
+  const [currentStep, setCurrentStep] = useState('welcome');
+  const [showDashboard, setShowDashboard] = useState(false);
   const [toast, setToast] = useState(null);
-  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
-  const [submissionAmount, setSubmissionAmount] = useState(0);
-  
   const [surveyData, setSurveyData] = useState({
     basicInfo: {
       pageUrl: '',
@@ -55,51 +50,59 @@ function App() {
     pending: 3
   });
 
-  // Check for saved auth
+  // Check for existing session on mount
   useEffect(() => {
-    const savedAuth = localStorage.getItem('isAuthenticated');
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedAuth === 'true' && savedUser) {
+    const storedUser = localStorage.getItem('currentUser');
+    if (storedUser) {
+      const userData = JSON.parse(storedUser);
+      setCurrentUser(userData);
       setIsAuthenticated(true);
-      setCurrentUser(JSON.parse(savedUser));
+      showToast(`Welcome back, ${userData.user.name}!`, 'success');
     }
   }, []);
 
-  // Auto-save survey draft
+  // Auto-save to localStorage
   useEffect(() => {
-    if (currentStep !== 'dashboard' && currentStep !== 'complete' && isAuthenticated) {
+    const savedData = localStorage.getItem('surveyDraft');
+    if (savedData && currentStep !== 'welcome' && currentStep !== 'complete' && isAuthenticated) {
+      const parsed = JSON.parse(savedData);
+      setSurveyData(parsed);
+      showToast('Draft restored from previous session', 'info');
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (currentStep !== 'welcome' && currentStep !== 'complete' && isAuthenticated) {
       localStorage.setItem('surveyDraft', JSON.stringify(surveyData));
     }
   }, [surveyData, currentStep, isAuthenticated]);
 
-  const handleLogin = (credentials) => {
-    setIsAuthenticated(true);
-    setCurrentUser({ name: credentials.email.split('@')[0], email: credentials.email });
-    localStorage.setItem('isAuthenticated', 'true');
-    localStorage.setItem('currentUser', JSON.stringify({ name: credentials.email.split('@')[0], email: credentials.email }));
-    showToast('Welcome back!', 'success');
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
   };
 
-  const handleRegister = (userData) => {
+  const handleLogin = (loginData) => {
+    setCurrentUser(loginData);
     setIsAuthenticated(true);
-    setCurrentUser({ name: userData.name, email: userData.email });
-    localStorage.setItem('isAuthenticated', 'true');
-    localStorage.setItem('currentUser', JSON.stringify({ name: userData.name, email: userData.email }));
-    showToast('Account created successfully!', 'success');
+    showToast(`Welcome, ${loginData.user.name}!`, 'success');
+    
+    // Log login information
+    console.log('Login successful:', {
+      user: loginData.user,
+      device: loginData.device,
+      location: loginData.location,
+      time: loginData.loginTime
+    });
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
-    localStorage.removeItem('isAuthenticated');
+    setCurrentStep('welcome');
+    setShowDashboard(false);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('surveyDraft');
-    setCurrentStep('dashboard');
     showToast('Logged out successfully', 'info');
-  };
-
-  const showToast = (message, type = 'info') => {
-    setToast({ message, type });
   };
 
   const getStepNumber = () => {
@@ -141,39 +144,20 @@ function App() {
         showToast('Quality assessment complete', 'success');
         break;
       case 'confirmation':
-        // Calculate earnings
-        const followers = parseInt(surveyData.basicInfo.followers);
-        const amount = followers >= 50000 ? 20 : 10;
-        setSubmissionAmount(amount);
-        
-        // Show success animation
-        setShowSuccessAnimation(true);
-        
-        // Clear draft
+        setCurrentStep('complete');
+        // Clear draft after submission
         localStorage.removeItem('surveyDraft');
-        
-        // Update stats with automatic approval (90% of the time)
-        const isAutoApproved = Math.random() < 0.9;
+        // Update user stats
         setUserStats(prev => ({
           ...prev,
           submitted: prev.submitted + 1,
-          approved: isAutoApproved ? prev.approved + 1 : prev.approved,
-          pending: isAutoApproved ? prev.pending : prev.pending + 1,
-          earnings: isAutoApproved ? prev.earnings + amount : prev.earnings
+          pending: prev.pending + 1
         }));
-        
-        if (isAutoApproved) {
-          showToast(`Survey approved! +${amount} ETB added to your wallet`, 'success');
-        }
+        showToast('Survey submitted successfully!', 'success');
         break;
       default:
         break;
     }
-  };
-
-  const handleSuccessAnimationComplete = () => {
-    setShowSuccessAnimation(false);
-    setCurrentStep('complete');
   };
 
   const handleBack = () => {
@@ -222,34 +206,15 @@ function App() {
       },
       confirmed: false
     });
-    setCurrentStep('welcome');
+    setCurrentStep('basicInfo');
+    showToast('Starting new survey', 'info');
   };
 
-  // Show login/register if not authenticated
+  // Show login screen if not authenticated
   if (!isAuthenticated) {
-    if (showRegister) {
-      return (
-        <>
-          <Register 
-            onRegister={handleRegister} 
-            onLogin={() => setShowRegister(false)} 
-          />
-          {toast && (
-            <Toast 
-              message={toast.message} 
-              type={toast.type} 
-              onClose={() => setToast(null)} 
-            />
-          )}
-        </>
-      );
-    }
     return (
-      <>
-        <Login 
-          onLogin={handleLogin} 
-          onRegister={() => setShowRegister(true)} 
-        />
+      <div className="container">
+        <Login onLogin={handleLogin} />
         {toast && (
           <Toast 
             message={toast.message} 
@@ -257,20 +222,69 @@ function App() {
             onClose={() => setToast(null)} 
           />
         )}
-      </>
+      </div>
     );
   }
 
-  // Show dashboard
-  if (currentStep === 'dashboard') {
+  if (showDashboard) {
     return (
-      <>
-        <WalletDashboard 
-          stats={userStats}
-          userName={currentUser?.name || 'User'}
-          onNewSurvey={startNewSurvey}
-          onLogout={handleLogout}
-        />
+      <div className="container">
+        {/* User info bar */}
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          background: 'white',
+          borderBottom: '1px solid #e0e0e0',
+          padding: '12px 20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          zIndex: 99
+        }}>
+          <div style={{ fontSize: 14 }}>
+            <strong>{currentUser.user.name}</strong>
+            {currentUser.user.role === 'admin' && (
+              <span style={{
+                background: '#dc3545',
+                color: 'white',
+                padding: '2px 8px',
+                borderRadius: 12,
+                fontSize: 11,
+                marginLeft: 8
+              }}>
+                ADMIN
+              </span>
+            )}
+          </div>
+          <button
+            onClick={handleLogout}
+            style={{
+              background: '#6c757d',
+              color: 'white',
+              padding: '6px 16px',
+              borderRadius: 20,
+              fontSize: 13,
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Logout
+          </button>
+        </div>
+        
+        <div style={{ paddingTop: 60 }}>
+          <Dashboard 
+            stats={userStats} 
+            currentUser={currentUser}
+            onNewSurvey={() => {
+              setShowDashboard(false);
+              setCurrentStep('welcome');
+            }}
+            onBack={() => setShowDashboard(false)}
+          />
+        </div>
         {toast && (
           <Toast 
             message={toast.message} 
@@ -278,7 +292,7 @@ function App() {
             onClose={() => setToast(null)} 
           />
         )}
-      </>
+      </div>
     );
   }
 
@@ -288,7 +302,7 @@ function App() {
         return (
           <Welcome 
             onNext={() => handleStepComplete('welcome')} 
-            onDashboard={() => setCurrentStep('dashboard')}
+            onDashboard={() => setShowDashboard(true)}
           />
         );
       case 'basicInfo':
@@ -336,22 +350,68 @@ function App() {
         return (
           <SurveyComplete 
             onNewSurvey={startNewSurvey}
-            onDashboard={() => setCurrentStep('dashboard')}
+            onDashboard={() => setShowDashboard(true)}
           />
         );
       default:
-        return null;
+        return <Welcome onNext={() => handleStepComplete('welcome')} />;
     }
   };
 
-  const showProgress = currentStep !== 'welcome' && currentStep !== 'complete' && currentStep !== 'dashboard';
+  const showProgress = currentStep !== 'welcome' && currentStep !== 'complete' && !showDashboard;
 
   return (
     <>
       {showProgress && (
         <ProgressBar currentStep={getStepNumber()} totalSteps={5} />
       )}
-      <div className={showProgress ? "pt-16" : ""}>
+      
+      {/* User info bar */}
+      <div style={{
+        position: 'fixed',
+        top: showProgress ? 50 : 0,
+        left: 0,
+        right: 0,
+        background: 'white',
+        borderBottom: '1px solid #e0e0e0',
+        padding: '12px 20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        zIndex: 98
+      }}>
+        <div style={{ fontSize: 14 }}>
+          <strong>{currentUser.user.name}</strong>
+          {currentUser.user.role === 'admin' && (
+            <span style={{
+              background: '#dc3545',
+              color: 'white',
+              padding: '2px 8px',
+              borderRadius: 12,
+              fontSize: 11,
+              marginLeft: 8
+            }}>
+              ADMIN
+            </span>
+          )}
+        </div>
+        <button
+          onClick={handleLogout}
+          style={{
+            background: '#6c757d',
+            color: 'white',
+            padding: '6px 16px',
+            borderRadius: 20,
+            fontSize: 13,
+            border: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          Logout
+        </button>
+      </div>
+      
+      <div className="container" style={{ paddingTop: showProgress ? 110 : 70 }}>
         {renderStep()}
       </div>
       {toast && (
@@ -359,12 +419,6 @@ function App() {
           message={toast.message} 
           type={toast.type} 
           onClose={() => setToast(null)} 
-        />
-      )}
-      {showSuccessAnimation && (
-        <SuccessAnimation 
-          amount={submissionAmount} 
-          onComplete={handleSuccessAnimationComplete} 
         />
       )}
     </>

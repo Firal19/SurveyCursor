@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import Analytics from './Analytics';
 import PrefilledSurvey from './PrefilledSurvey';
+import AdminPanel from './AdminPanel';
 
-const Dashboard = ({ stats, onNewSurvey, onBack }) => {
+const Dashboard = ({ stats, onNewSurvey, onBack, currentUser }) => {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [selectedPrefilled, setSelectedPrefilled] = useState(null);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   
   const preFilledPages = [
     { id: 1, name: 'Addis Tech Solutions', category: 'Technology', followers: '12.5K', url: 'https://facebook.com/addistech' },
@@ -47,7 +49,21 @@ const Dashboard = ({ stats, onNewSurvey, onBack }) => {
           gap: 12
         }}>
           <h1 style={{ margin: 0 }}>Your Dashboard</h1>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {currentUser?.user?.role === 'admin' && (
+              <button 
+                onClick={() => setShowAdminPanel(true)}
+                style={{ 
+                  background: '#dc3545',
+                  color: 'white',
+                  padding: '8px 16px',
+                  borderRadius: 20,
+                  fontSize: 14
+                }}
+              >
+                🛡️ Admin Panel
+              </button>
+            )}
             <button 
               onClick={() => setShowAnalytics(true)}
               style={{ 
@@ -229,6 +245,10 @@ const Dashboard = ({ stats, onNewSurvey, onBack }) => {
           onComplete={handlePrefilledComplete}
           onCancel={() => setSelectedPrefilled(null)}
         />
+      )}
+
+      {showAdminPanel && (
+        <AdminPanel onClose={() => setShowAdminPanel(false)} />
       )}
     </>
   );
