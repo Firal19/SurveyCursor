@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import Login from './components/Login';
+import Register from './components/Register';
+import WalletDashboard from './components/WalletDashboard';
 import Welcome from './components/Welcome';
 import BasicInfo from './components/BasicInfo';
 import BusinessCategory from './components/BusinessCategory';
@@ -7,14 +10,19 @@ import SpecificServices from './components/SpecificServices';
 import PageQuality from './components/PageQuality';
 import Confirmation from './components/Confirmation';
 import SurveyComplete from './components/SurveyComplete';
-import Dashboard from './components/Dashboard';
 import ProgressBar from './components/ProgressBar';
 import Toast from './components/Toast';
+import SuccessAnimation from './components/SuccessAnimation';
 
 function App() {
-  const [currentStep, setCurrentStep] = useState('welcome');
-  const [showDashboard, setShowDashboard] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [currentStep, setCurrentStep] = useState('dashboard');
   const [toast, setToast] = useState(null);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [submissionAmount, setSubmissionAmount] = useState(0);
+  
   const [surveyData, setSurveyData] = useState({
     basicInfo: {
       pageUrl: '',
@@ -47,21 +55,48 @@ function App() {
     pending: 3
   });
 
-  // Auto-save to localStorage
+  // Check for saved auth
   useEffect(() => {
-    const savedData = localStorage.getItem('surveyDraft');
-    if (savedData && currentStep !== 'welcome' && currentStep !== 'complete') {
-      const parsed = JSON.parse(savedData);
-      setSurveyData(parsed);
-      showToast('Draft restored from previous session', 'info');
+    const savedAuth = localStorage.getItem('isAuthenticated');
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedAuth === 'true' && savedUser) {
+      setIsAuthenticated(true);
+      setCurrentUser(JSON.parse(savedUser));
     }
   }, []);
 
+  // Auto-save survey draft
   useEffect(() => {
-    if (currentStep !== 'welcome' && currentStep !== 'complete') {
+    if (currentStep !== 'dashboard' && currentStep !== 'complete' && isAuthenticated) {
       localStorage.setItem('surveyDraft', JSON.stringify(surveyData));
     }
-  }, [surveyData, currentStep]);
+  }, [surveyData, currentStep, isAuthenticated]);
+
+  const handleLogin = (credentials) => {
+    setIsAuthenticated(true);
+    setCurrentUser({ name: credentials.email.split('@')[0], email: credentials.email });
+    localStorage.setItem('isAuthenticated', 'true');
+    localStorage.setItem('currentUser', JSON.stringify({ name: credentials.email.split('@')[0], email: credentials.email }));
+    showToast('Welcome back!', 'success');
+  };
+
+  const handleRegister = (userData) => {
+    setIsAuthenticated(true);
+    setCurrentUser({ name: userData.name, email: userData.email });
+    localStorage.setItem('isAuthenticated', 'true');
+    localStorage.setItem('currentUser', JSON.stringify({ name: userData.name, email: userData.email }));
+    showToast('Account created successfully!', 'success');
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('surveyDraft');
+    setCurrentStep('dashboard');
+    showToast('Logged out successfully', 'info');
+  };
 
   const showToast = (message, type = 'info') => {
     setToast({ message, type });
@@ -106,20 +141,39 @@ function App() {
         showToast('Quality assessment complete', 'success');
         break;
       case 'confirmation':
-        setCurrentStep('complete');
-        // Clear draft after submission
+        // Calculate earnings
+        const followers = parseInt(surveyData.basicInfo.followers);
+        const amount = followers >= 50000 ? 20 : 10;
+        setSubmissionAmount(amount);
+        
+        // Show success animation
+        setShowSuccessAnimation(true);
+        
+        // Clear draft
         localStorage.removeItem('surveyDraft');
-        // Update user stats
+        
+        // Update stats with automatic approval (90% of the time)
+        const isAutoApproved = Math.random() < 0.9;
         setUserStats(prev => ({
           ...prev,
           submitted: prev.submitted + 1,
-          pending: prev.pending + 1
+          approved: isAutoApproved ? prev.approved + 1 : prev.approved,
+          pending: isAutoApproved ? prev.pending : prev.pending + 1,
+          earnings: isAutoApproved ? prev.earnings + amount : prev.earnings
         }));
-        showToast('Survey submitted successfully!', 'success');
+        
+        if (isAutoApproved) {
+          showToast(`Survey approved! +${amount} ETB added to your wallet`, 'success');
+        }
         break;
       default:
         break;
     }
+  };
+
+  const handleSuccessAnimationComplete = () => {
+    setShowSuccessAnimation(false);
+    setCurrentStep('complete');
   };
 
   const handleBack = () => {
@@ -168,20 +222,33 @@ function App() {
       },
       confirmed: false
     });
-    setCurrentStep('basicInfo');
-    showToast('Starting new survey', 'info');
+    setCurrentStep('welcome');
   };
 
-  if (showDashboard) {
+  // Show login/register if not authenticated
+  if (!isAuthenticated) {
+    if (showRegister) {
+      return (
+        <>
+          <Register 
+            onRegister={handleRegister} 
+            onLogin={() => setShowRegister(false)} 
+          />
+          {toast && (
+            <Toast 
+              message={toast.message} 
+              type={toast.type} 
+              onClose={() => setToast(null)} 
+            />
+          )}
+        </>
+      );
+    }
     return (
-      <div className="container">
-        <Dashboard 
-          stats={userStats} 
-          onNewSurvey={() => {
-            setShowDashboard(false);
-            setCurrentStep('welcome');
-          }}
-          onBack={() => setShowDashboard(false)}
+      <>
+        <Login 
+          onLogin={handleLogin} 
+          onRegister={() => setShowRegister(true)} 
         />
         {toast && (
           <Toast 
@@ -190,7 +257,28 @@ function App() {
             onClose={() => setToast(null)} 
           />
         )}
-      </div>
+      </>
+    );
+  }
+
+  // Show dashboard
+  if (currentStep === 'dashboard') {
+    return (
+      <>
+        <WalletDashboard 
+          stats={userStats}
+          userName={currentUser?.name || 'User'}
+          onNewSurvey={startNewSurvey}
+          onLogout={handleLogout}
+        />
+        {toast && (
+          <Toast 
+            message={toast.message} 
+            type={toast.type} 
+            onClose={() => setToast(null)} 
+          />
+        )}
+      </>
     );
   }
 
@@ -200,7 +288,7 @@ function App() {
         return (
           <Welcome 
             onNext={() => handleStepComplete('welcome')} 
-            onDashboard={() => setShowDashboard(true)}
+            onDashboard={() => setCurrentStep('dashboard')}
           />
         );
       case 'basicInfo':
@@ -248,22 +336,22 @@ function App() {
         return (
           <SurveyComplete 
             onNewSurvey={startNewSurvey}
-            onDashboard={() => setShowDashboard(true)}
+            onDashboard={() => setCurrentStep('dashboard')}
           />
         );
       default:
-        return <Welcome onNext={() => handleStepComplete('welcome')} />;
+        return null;
     }
   };
 
-  const showProgress = currentStep !== 'welcome' && currentStep !== 'complete' && !showDashboard;
+  const showProgress = currentStep !== 'welcome' && currentStep !== 'complete' && currentStep !== 'dashboard';
 
   return (
     <>
       {showProgress && (
         <ProgressBar currentStep={getStepNumber()} totalSteps={5} />
       )}
-      <div className="container" style={{ paddingTop: showProgress ? 60 : 20 }}>
+      <div className={showProgress ? "pt-16" : ""}>
         {renderStep()}
       </div>
       {toast && (
@@ -271,6 +359,12 @@ function App() {
           message={toast.message} 
           type={toast.type} 
           onClose={() => setToast(null)} 
+        />
+      )}
+      {showSuccessAnimation && (
+        <SuccessAnimation 
+          amount={submissionAmount} 
+          onComplete={handleSuccessAnimationComplete} 
         />
       )}
     </>
