@@ -1,8 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-const BasicInfo = ({ data, onNext, onBack }) => {
+const BasicInfo = ({ data, onNext, onBack, locked }) => {
   const [formData, setFormData] = useState(data);
   const [errors, setErrors] = useState({});
+  const [duplicate, setDuplicate] = useState(null);
+  const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
+
+  useEffect(() => {
+    if (formData.pageUrl && formData.pageUrl.includes('facebook.com')) {
+      const entries = JSON.parse(localStorage.getItem('surveyEntries') || '[]');
+      const found = entries.find(e => e.basicInfo && e.basicInfo.pageUrl === formData.pageUrl);
+      setDuplicate(found || null);
+      setDuplicateConfirmed(false);
+    } else {
+      setDuplicate(null);
+      setDuplicateConfirmed(false);
+    }
+  }, [formData.pageUrl]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -37,15 +51,25 @@ const BasicInfo = ({ data, onNext, onBack }) => {
 
   const handleSubmit = () => {
     if (validateForm()) {
-      onNext(formData);
+      if (duplicate && !duplicateConfirmed) return;
+      onNext(formData, duplicate ? { duplicate: true } : undefined);
     }
+  };
+
+  const handleConfirmDuplicate = () => {
+    setDuplicateConfirmed(true);
+    // Optionally update the entry in localStorage here
+    // Award 2 birr logic can be handled in parent
+    onNext(formData, { duplicate: true });
   };
 
   const handleChange = (field, value) => {
     setFormData({ ...formData, [field]: value });
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors({ ...errors, [field]: '' });
+    }
+    if (field === 'pageUrl') {
+      setDuplicateConfirmed(false);
     }
   };
 
@@ -77,13 +101,43 @@ const BasicInfo = ({ data, onNext, onBack }) => {
         <label className="form-label">
           Facebook Page URL <span style={{ color: 'red' }}>*</span>
         </label>
-        <input
-          type="url"
-          className={`form-input ${errors.pageUrl ? 'error' : ''}`}
-          placeholder="https://www.facebook.com/businesspage"
-          value={formData.pageUrl}
-          onChange={(e) => handleChange('pageUrl', e.target.value)}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="url"
+            className={`form-input ${errors.pageUrl ? 'error' : ''}`}
+            placeholder="https://www.facebook.com/businesspage"
+            value={formData.pageUrl}
+            onChange={(e) => handleChange('pageUrl', e.target.value)}
+            disabled={locked}
+            style={locked ? { background: '#f0f0f0', color: '#888' } : {}}
+          />
+          {locked && <span title="Locked" style={{ color: '#4a7bff', fontSize: 18, marginLeft: 2 }}>🔒</span>}
+        </div>
+        {duplicate && !duplicateConfirmed && (
+          <div style={{ background: '#fff3cd', color: '#856404', padding: 10, borderRadius: 8, marginTop: 8 }}>
+            <strong>Duplicate Detected:</strong> This URL already exists.<br />
+            <span style={{ fontSize: 13 }}>Page Name: {duplicate.basicInfo?.pageName || 'N/A'}</span><br />
+            <span style={{ fontSize: 13 }}>Followers: {duplicate.basicInfo?.followers || 'N/A'}</span><br />
+            <button className="primary-button" style={{ marginTop: 8 }} onClick={handleConfirmDuplicate}>
+              Confirm/Update Duplicate (Get 2 birr)
+            </button>
+          </div>
+        )}
+        {duplicate && duplicateConfirmed && (
+          <div style={{ color: 'green', marginTop: 8 }}>
+            Duplicate confirmed. You will get 2 birr for updating this entry.
+          </div>
+        )}
+        {locked && formData.pageUrl && (
+          <button
+            className="secondary-button"
+            style={{ marginTop: 8, width: '100%' }}
+            onClick={() => window.open(formData.pageUrl, '_blank')}
+            type="button"
+          >
+            Visit Page
+          </button>
+        )}
         {errors.pageUrl && <span className="error-text">{errors.pageUrl}</span>}
       </div>
 
@@ -91,13 +145,18 @@ const BasicInfo = ({ data, onNext, onBack }) => {
         <label className="form-label">
           Page Name <span style={{ color: 'red' }}>*</span>
         </label>
-        <input
-          type="text"
-          className={`form-input ${errors.pageName ? 'error' : ''}`}
-          placeholder="Business name as shown on Facebook"
-          value={formData.pageName}
-          onChange={(e) => handleChange('pageName', e.target.value)}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="text"
+            className={`form-input ${errors.pageName ? 'error' : ''}`}
+            placeholder="Business name as shown on Facebook"
+            value={formData.pageName}
+            onChange={(e) => handleChange('pageName', e.target.value)}
+            disabled={locked}
+            style={locked ? { background: '#f0f0f0', color: '#888' } : {}}
+          />
+          {locked && <span title="Locked" style={{ color: '#4a7bff', fontSize: 18, marginLeft: 2 }}>🔒</span>}
+        </div>
         {errors.pageName && <span className="error-text">{errors.pageName}</span>}
       </div>
 
@@ -176,7 +235,7 @@ const BasicInfo = ({ data, onNext, onBack }) => {
         <button className="secondary-button" onClick={onBack}>
           Previous
         </button>
-        <button className="primary-button" onClick={handleSubmit}>
+        <button className="primary-button" onClick={handleSubmit} disabled={duplicate && !duplicateConfirmed}>
           Next
         </button>
       </div>

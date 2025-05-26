@@ -1,10 +1,16 @@
 /* Additional App-specific styles - Mobile First */
 
 .checklist-icon {
-  width: 40px;
-  height: 40px;
-  margin-bottom: 12px;
-  font-size: 32px;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  font-size: 36px;
+  background: #eaf6ff;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4a7bff;
 }
 
 @media (min-width: 480px) {
@@ -50,17 +56,17 @@
 }
 
 .checklist-number {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: #e0e0e0;
-  color: #666;
+  background: #eaf6ff;
+  color: #4a7bff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
+  font-weight: 700;
   margin-right: 12px;
-  font-size: 14px;
+  font-size: 16px;
   flex-shrink: 0;
 }
 
@@ -1143,30 +1149,55 @@
 
 /* Floating action button */
 .fab {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
+  background: #4a7bff;
+  color: #fff;
+  border-radius: 50%;
   width: 56px;
   height: 56px;
-  background: #4a7bff;
-  color: white;
-  border-radius: 50%;
+  box-shadow: 0 8px 24px rgba(74,123,255,0.18);
+  font-size: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  z-index: 100;
+  border: none;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
 }
-
-.fab:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+.fab:hover, .fab:focus-visible {
+  background: #355ecf;
+  box-shadow: 0 12px 32px rgba(74,123,255,0.28);
+  transform: scale(1.08);
+  outline: none;
 }
-
 .fab:active {
-  transform: scale(0.95);
+  background: #2747a6;
+  transform: scale(0.96);
+}
+
+.card, .card-wide {
+  background: linear-gradient(135deg, #fff 60%, #eaf6ff 100%);
+  border-radius: 28px;
+  box-shadow: 0 8px 32px rgba(80, 120, 200, 0.10);
+  padding: 28px 20px;
+  margin-bottom: 24px;
+  border: none;
+  transition: box-shadow 0.2s, transform 0.1s;
+}
+.card:hover, .card-wide:hover {
+  box-shadow: 0 12px 32px rgba(74,123,255,0.14);
+  transform: translateY(-2px) scale(1.01);
+}
+
+.primary-button, .secondary-button {
+  transition: background 0.2s, color 0.2s, transform 0.1s;
+}
+.primary-button:active, .secondary-button:active {
+  transform: scale(0.97);
+}
+
+/* ARIA focus styles for accessibility */
+button:focus-visible, .fab:focus-visible {
+  outline: 3px solid #4a7bff;
+  outline-offset: 2px;
 }
 
 /* Accessibility improvements */
@@ -1180,16 +1211,6 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-/* Focus styles for better accessibility */
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
-a:focus-visible {
-  outline: 2px solid #4a7bff;
-  outline-offset: 2px;
 }
 
 /* Dark mode support (optional) */

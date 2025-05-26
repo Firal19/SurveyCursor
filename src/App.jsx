@@ -11,6 +11,7 @@ import SurveyComplete from './components/SurveyComplete';
 import Dashboard from './components/Dashboard';
 import ProgressBar from './components/ProgressBar';
 import Toast from './components/Toast';
+import { mainCategories } from './data/categories';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -49,6 +50,17 @@ function App() {
     earnings: 380,
     pending: 3
   });
+
+  const [resumeLocked, setResumeLocked] = useState(false);
+
+  const [dailyGoal, setDailyGoal] = useState(() => {
+    const saved = JSON.parse(localStorage.getItem('dailyGoal') || '{}');
+    return saved.category ? saved : null;
+  });
+
+  const [categoryQuota, setCategoryQuota] = useState({});
+  const [totalEntries, setTotalEntries] = useState(0);
+  const [duplicateUrl, setDuplicateUrl] = useState(null);
 
   // Check for existing session on mount
   useEffect(() => {
@@ -116,11 +128,25 @@ function App() {
     return steps[currentStep] || 0;
   };
 
-  const handleStepComplete = (step, data) => {
+  const handleStepComplete = (step, data, options) => {
     setSurveyData(prev => ({
       ...prev,
       [step]: data
     }));
+
+    // Duplicate logic for BasicInfo
+    if (step === 'basicInfo' && options && options.duplicate) {
+      // Award 2 birr
+      setUserStats(prev => ({ ...prev, earnings: prev.earnings + 2 }));
+      showToast('Duplicate confirmed. You earned 2 birr!', 'success');
+      // Update duplicate entry in localStorage
+      const entries = JSON.parse(localStorage.getItem('surveyEntries') || '[]');
+      const idx = entries.findIndex(e => e.basicInfo && e.basicInfo.pageUrl === data.pageUrl);
+      if (idx !== -1) {
+        entries[idx].basicInfo = data;
+        localStorage.setItem('surveyEntries', JSON.stringify(entries));
+      }
+    }
 
     // Navigate to next step
     switch (step) {
@@ -210,6 +236,42 @@ function App() {
     showToast('Starting new survey', 'info');
   };
 
+  const handleResumeSurvey = (incompleteSurvey) => {
+    setSurveyData({
+      ...surveyData,
+      basicInfo: {
+        ...surveyData.basicInfo,
+        pageUrl: incompleteSurvey.pageUrl,
+        pageName: incompleteSurvey.pageName,
+        followers: incompleteSurvey.followers || '',
+        lastActive: incompleteSurvey.lastActive || '',
+        aboutSection: incompleteSurvey.aboutSection || '',
+        language: incompleteSurvey.language || 'English',
+      },
+      businessCategory: null,
+      specificServices: [],
+      pageQuality: {
+        overallQuality: null,
+        contentFocus: '',
+        lastPostDate: '',
+        lastPostUrl: '',
+        mainProducts: '',
+        postFrequency: null,
+        engagementLevel: null,
+        contentType: []
+      },
+      confirmed: false
+    });
+    setCurrentStep('businessCategory');
+    setShowDashboard(false);
+    setResumeLocked(true);
+    showToast('Resuming incomplete survey', 'info');
+  };
+
+  const handleGoalSet = (goalObj) => {
+    setDailyGoal(goalObj);
+  };
+
   // Show login screen if not authenticated
   if (!isAuthenticated) {
     return (
@@ -230,49 +292,51 @@ function App() {
     return (
       <div className="container">
         {/* User info bar */}
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          background: 'white',
-          borderBottom: '1px solid #e0e0e0',
-          padding: '12px 20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          zIndex: 99
-        }}>
-          <div style={{ fontSize: 14 }}>
-            <strong>{currentUser.user.name}</strong>
-            {currentUser.user.role === 'admin' && (
-              <span style={{
-                background: '#dc3545',
+        {currentUser && currentUser.user && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            background: 'white',
+            borderBottom: '1px solid #e0e0e0',
+            padding: '12px 20px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            zIndex: 99
+          }}>
+            <div style={{ fontSize: 14 }}>
+              <strong>{currentUser.user.name}</strong>
+              {currentUser.user.role === 'admin' && (
+                <span style={{
+                  background: '#dc3545',
+                  color: 'white',
+                  padding: '2px 8px',
+                  borderRadius: 12,
+                  fontSize: 11,
+                  marginLeft: 8
+                }}>
+                  ADMIN
+                </span>
+              )}
+            </div>
+            <button
+              onClick={handleLogout}
+              style={{
+                background: '#6c757d',
                 color: 'white',
-                padding: '2px 8px',
-                borderRadius: 12,
-                fontSize: 11,
-                marginLeft: 8
-              }}>
-                ADMIN
-              </span>
-            )}
+                padding: '6px 16px',
+                borderRadius: 20,
+                fontSize: 13,
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              Logout
+            </button>
           </div>
-          <button
-            onClick={handleLogout}
-            style={{
-              background: '#6c757d',
-              color: 'white',
-              padding: '6px 16px',
-              borderRadius: 20,
-              fontSize: 13,
-              border: 'none',
-              cursor: 'pointer'
-            }}
-          >
-            Logout
-          </button>
-        </div>
+        )}
         
         <div style={{ paddingTop: 60 }}>
           <Dashboard 
@@ -281,8 +345,11 @@ function App() {
             onNewSurvey={() => {
               setShowDashboard(false);
               setCurrentStep('welcome');
+              setResumeLocked(false);
             }}
+            onResumeSurvey={handleResumeSurvey}
             onBack={() => setShowDashboard(false)}
+            onGoalSet={handleGoalSet}
           />
         </div>
         {toast && (
@@ -311,6 +378,7 @@ function App() {
             data={surveyData.basicInfo} 
             onNext={(data) => handleStepComplete('basicInfo', data)}
             onBack={handleBack}
+            locked={resumeLocked}
           />
         );
       case 'businessCategory':
@@ -319,6 +387,8 @@ function App() {
             selected={surveyData.businessCategory}
             onNext={(data) => handleStepComplete('businessCategory', data)}
             onBack={handleBack}
+            dailyGoal={dailyGoal}
+            onGoalSet={handleGoalSet}
           />
         );
       case 'specificServices':
@@ -367,49 +437,51 @@ function App() {
       )}
       
       {/* User info bar */}
-      <div style={{
-        position: 'fixed',
-        top: showProgress ? 50 : 0,
-        left: 0,
-        right: 0,
-        background: 'white',
-        borderBottom: '1px solid #e0e0e0',
-        padding: '12px 20px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        zIndex: 98
-      }}>
-        <div style={{ fontSize: 14 }}>
-          <strong>{currentUser.user.name}</strong>
-          {currentUser.user.role === 'admin' && (
-            <span style={{
-              background: '#dc3545',
+      {currentUser && currentUser.user && (
+        <div style={{
+          position: 'fixed',
+          top: showProgress ? 50 : 0,
+          left: 0,
+          right: 0,
+          background: 'white',
+          borderBottom: '1px solid #e0e0e0',
+          padding: '12px 20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          zIndex: 98
+        }}>
+          <div style={{ fontSize: 14 }}>
+            <strong>{currentUser.user.name}</strong>
+            {currentUser.user.role === 'admin' && (
+              <span style={{
+                background: '#dc3545',
+                color: 'white',
+                padding: '2px 8px',
+                borderRadius: 12,
+                fontSize: 11,
+                marginLeft: 8
+              }}>
+                ADMIN
+              </span>
+            )}
+          </div>
+          <button
+            onClick={handleLogout}
+            style={{
+              background: '#6c757d',
               color: 'white',
-              padding: '2px 8px',
-              borderRadius: 12,
-              fontSize: 11,
-              marginLeft: 8
-            }}>
-              ADMIN
-            </span>
-          )}
+              padding: '6px 16px',
+              borderRadius: 20,
+              fontSize: 13,
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Logout
+          </button>
         </div>
-        <button
-          onClick={handleLogout}
-          style={{
-            background: '#6c757d',
-            color: 'white',
-            padding: '6px 16px',
-            borderRadius: 20,
-            fontSize: 13,
-            border: 'none',
-            cursor: 'pointer'
-          }}
-        >
-          Logout
-        </button>
-      </div>
+      )}
       
       <div className="container" style={{ paddingTop: showProgress ? 110 : 70 }}>
         {renderStep()}
